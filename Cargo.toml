@@ -1,0 +1,9 @@
+[package]
+name = "ranked-polls-discord-bot"
+version = "0.1.0"
+authors = ["David Johnson <john01dav@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+serenity = "0.10.7"
+tokio = "1.6.0"
