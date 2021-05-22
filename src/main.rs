@@ -1,4 +1,5 @@
 pub mod db;
+pub mod tally;
 
 use serenity::async_trait;
 use serenity::framework::StandardFramework;
@@ -11,7 +12,7 @@ use crate::db::Db;
 use std::sync::Arc;
 
 #[group]
-#[commands(vote_help, poll, vote)]
+#[commands(vote_help, poll, vote, tally)]
 struct General;
 
 struct Handler;
@@ -113,5 +114,15 @@ async fn vote_internal(ctx: &Context, msg: &Message, mut args_unusable: Args) ->
 
     msg.reply_ping(ctx, "Congratulations! Your vote has been saved.").await?;
 
+    Ok(())
+}
+
+command_wrapper!(tally, tally_internal);
+
+async fn tally_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandResult{
+    let data = ctx.data.read().await;
+    let db = data.get::<Db>().unwrap();
+    let results = tally::tally(db.as_ref()).await?;
+    msg.reply_ping(ctx, results).await?;
     Ok(())
 }

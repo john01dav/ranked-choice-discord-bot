@@ -1,5 +1,5 @@
 use sqlx::MySqlPool;
-use crate::db::entities::Candidate;
+use crate::db::entities::{Candidate, Vote};
 use serenity::prelude::TypeMapKey;
 use std::sync::Arc;
 
@@ -42,6 +42,23 @@ impl Db{
         Ok(())
     }
 
+    pub async fn get_nth_vote(&self, user: u64, n: u32) -> sqlx::Result<Option<u32>>{
+        Ok(
+            sqlx::query!("SELECT option FROM votes WHERE user=? AND choice_number=?", user, n)
+                .fetch_optional(&self.pool)
+                .await?
+                .map(|r| r.option)
+        )
+    }
+
+    pub async fn get_1st_votes(&self) -> sqlx::Result<Vec<Vote>>{
+        Ok(
+            sqlx::query_as!(Vote, "SELECT user, option FROM votes WHERE choice_number=1")
+                .fetch_all(&self.pool)
+                .await?
+        )
+    }
+
 }
 
 pub mod entities{
@@ -49,6 +66,11 @@ pub mod entities{
     pub struct Candidate{
         pub id: u32,
         pub name: String
+    }
+
+    pub struct Vote{
+        pub user: u64,
+        pub option: u32
     }
 
 }
