@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 serenity = "0.10.7"
 tokio = { version = "1.6.0", features = ["rt-multi-thread"]}
+sqlx = { version = "0.5.3", features = ["runtime-tokio-native-tls", "mysql"] }
