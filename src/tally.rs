@@ -11,7 +11,13 @@ pub async fn tally(db: &Db) -> sqlx::Result<String>{
     loop{
         let provisional_tally = tally.tally_current_round();
         response.push_str(&format!("The results from round {} are:\n", round_id));
-        for ((name, id), count) in &provisional_tally{
+
+        let mut sorted_tally = provisional_tally.iter().collect::<Vec<(&(String, u32), &u32)>>();
+        sorted_tally.sort_by(|a, b|{
+            a.0.1.partial_cmp(&(b.0.1)).unwrap()
+        });
+
+        for ((name, id), count) in sorted_tally{
             if tally.eliminated.contains(id){
                 response.push_str(&format!(" - ~~{} with {} votes~~\n", name, count));
             }else{

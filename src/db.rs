@@ -19,8 +19,7 @@ impl Db{
 
     pub async fn list_candidates(&self) -> sqlx::Result<Vec<Candidate>>{
         Ok(
-            //sqlx::query_as!(Candidate, "SELECT id, name FROM candidates").fetch_all(&self.pool).await?
-            sqlx::query_as!(Candidate, "SELECT id, name FROM candidates").fetch_all(&self.pool).await?
+            sqlx::query_as!(Candidate, "SELECT id, name FROM candidates ORDER BY id ASC").fetch_all(&self.pool).await?
         )
     }
 
