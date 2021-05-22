@@ -78,8 +78,8 @@ async fn poll_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandResu
     let data = ctx.data.read().await;
     let db = data.get::<Db>().unwrap();
 
-    let fields = db.list_candidates().await?.into_iter().enumerate().map(|(i, candidate)|{
-        (format!("ID: {}", i), candidate.name, false)
+    let fields = db.list_candidates().await?.into_iter().map(|candidate|{
+        (format!("ID: {}", candidate.id), candidate.name, false)
     }).collect::<Vec<(String, String, bool)>>();
 
     msg.channel_id.send_message(&ctx.http,move  |m| {
