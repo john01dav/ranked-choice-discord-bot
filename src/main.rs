@@ -132,6 +132,22 @@ async fn tally_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandRes
     let db = data.get::<Db>().unwrap();
     let results = tally::tally(db.as_ref()).await?;
     let elapsed = Instant::now()-start;
-    msg.reply_ping(ctx, &format!("{}\nComputed in {} milliseconds.", results, elapsed.as_millis())).await?;
+
+    msg.channel_id.send_message(&ctx.http,move  |m| {
+        m.embed(|e|{
+            e.title("Vote Results");
+            e.color(Colour::from_rgb(59, 130, 246));
+            e.description(results);
+            e.footer(|cef|{
+                cef.text(format!("Computed in {} milliseconds.", elapsed.as_millis()));
+                cef
+            });
+
+            e
+        });
+
+        m
+    }).await?;
+
     Ok(())
 }
