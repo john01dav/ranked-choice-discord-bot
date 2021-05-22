@@ -11,6 +11,7 @@ use serenity::framework::standard::macros::{command, group};
 use crate::db::Db;
 use std::sync::Arc;
 use std::time::Instant;
+use serenity::utils::Colour;
 
 #[group]
 #[commands(vote_help, poll, vote, tally)]
@@ -77,17 +78,22 @@ async fn poll_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandResu
     let data = ctx.data.read().await;
     let db = data.get::<Db>().unwrap();
 
-    let mut reply = String::new();
-    reply.push_str("The options in the current poll are as follows:\n");
+    let fields = db.list_candidates().await?.into_iter().enumerate().map(|(i, candidate)|{
+        (format!("ID: {}", i), candidate.name, false)
+    }).collect::<Vec<(String, String, bool)>>();
 
-    let candidates = db.list_candidates().await?;
-    for candidate in candidates{
-        reply.push_str(&format!(" - {} (ID is {})\n", candidate.name, candidate.id));
-    }
+    msg.channel_id.send_message(&ctx.http,move  |m| {
+        m.embed(|e|{
+            e.title("Vote Options");
+            e.description("To vote, run !vote and list the IDs of your candidates from most preferable to least preferable. You do not need to list all candidates. For example, if you like the candidate with ID 3 best, then the candidate with ID 1, and then like the candidate with ID 2 the least, you would run `!vote 3 1 2`.");
+            e.fields(fields);
+            e.color(Colour::from_rgb(59, 130, 246));
 
-    reply.push_str("\nTo vote, run !vote and list the IDs of your candidates from most preferable to least preferable. You do not need to list all candidates. For example, if you like the candidate with ID 3 best, then the candidate with ID 1, and then like the candidate with ID 2 the least, you would run `!vote 3 1 2`.");
+            e
+        });
 
-    msg.reply_ping(ctx, reply).await?;
+        m
+    }).await?;
 
     Ok(())
 }
