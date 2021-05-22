@@ -24,6 +24,24 @@ impl Db{
         )
     }
 
+    pub async fn set_vote(&self, user: u64, votes: Vec<u32>) -> sqlx::Result<()>{
+        let mut transaction = self.pool.begin().await?;
+
+        //first, remove existing vote if any
+        sqlx::query!("DELETE FROM votes WHERE user=?", user).execute(&mut transaction).await?;
+
+        //now, add new votes
+        for i in 0..votes.len(){
+            sqlx::query!("INSERT INTO votes(user, option, choice_number) VALUES(?, ?, ?)", user, votes[i], (i+1) as u32)
+                .execute(&mut transaction)
+                .await?;
+        }
+
+        transaction.commit().await?;
+
+        Ok(())
+    }
+
 }
 
 pub mod entities{
