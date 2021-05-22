@@ -2,32 +2,36 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::db::Db;
 use crate::db::entities::Candidate;
 
-pub async fn tally(db: &Db) -> sqlx::Result<String>{
-    let mut response = String::new();
-
+pub async fn tally(db: &Db) -> sqlx::Result<(String, Vec<(String, String, bool)>)>{
     let mut tally = Tally::new(db).await?; //TODO: use a transaction to prevent the data from changing while we read it
     let mut round_id = 1;
 
+    let description;
+    let mut fields = Vec::new();
+
     loop{
+        let field_title = format!("The results from round {} are:", round_id);
+
         let provisional_tally = tally.tally_current_round();
-        response.push_str(&format!("The results from round {} are:\n", round_id));
 
         let mut sorted_tally = provisional_tally.iter().collect::<Vec<(&(String, u32), &u32)>>();
         sorted_tally.sort_by(|a, b|{
             a.0.1.partial_cmp(&(b.0.1)).unwrap()
         });
 
+        let mut field_description = String::new();
         for ((name, id), count) in sorted_tally{
             if tally.eliminated.contains(id){
-                response.push_str(&format!(" - ~~{} with {} votes~~\n", name, count));
+                field_description.push_str(&format!(" - ~~{} with {} votes~~\n", name, count));
             }else{
-                response.push_str(&format!(" - {} with {} votes\n", name, count));
+                field_description.push_str(&format!(" - {} with {} votes\n", name, count));
             }
         }
 
         let majority = Tally::majority(&provisional_tally);
         if let Some(majority) = majority{
-            response.push_str(&format!("\n**A winner has been selected after {} rounds: __{}__\n**", round_id, majority));
+            description = format!("\n**A winner has been selected after {} rounds: __{}__\n**", round_id, majority);
+            fields.push((field_title, field_description, false));
             break;
         }
 
@@ -35,11 +39,14 @@ pub async fn tally(db: &Db) -> sqlx::Result<String>{
         match least_popular{
             Some(least_popular) => {
                 let name = &tally.options.get(&least_popular).unwrap().name;
-                response.push_str(&format!("\nEliminating the least popular option: {}\n\n", name));
+                field_description.push_str(&format!("\nEliminating the least popular option: {}\n\n", name));
                 tally.eliminate(least_popular).await?;
+
+                fields.push((field_title, field_description, false));
             },
             None => {
-                response.push_str("It looks like no votes are left, aborting.\n");
+                description = "It looks like no votes are left, aborting.\n".into();
+                fields.push((field_title, field_description, false));
                 break;
             }
         }
@@ -47,7 +54,7 @@ pub async fn tally(db: &Db) -> sqlx::Result<String>{
         round_id += 1;
     }
 
-    Ok(response)
+    Ok((description, fields))
 }
 
 struct VoterData{
