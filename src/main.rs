@@ -10,6 +10,7 @@ use serenity::client::{Context, EventHandler};
 use serenity::framework::standard::macros::{command, group};
 use crate::db::Db;
 use std::sync::Arc;
+use std::time::Instant;
 
 #[group]
 #[commands(vote_help, poll, vote, tally)]
@@ -120,9 +121,11 @@ async fn vote_internal(ctx: &Context, msg: &Message, mut args_unusable: Args) ->
 command_wrapper!(tally, tally_internal);
 
 async fn tally_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandResult{
+    let start = Instant::now();
     let data = ctx.data.read().await;
     let db = data.get::<Db>().unwrap();
     let results = tally::tally(db.as_ref()).await?;
-    msg.reply_ping(ctx, results).await?;
+    let elapsed = Instant::now()-start;
+    msg.reply_ping(ctx, &format!("{}\nComputed in {} milliseconds.", results, elapsed.as_millis())).await?;
     Ok(())
 }

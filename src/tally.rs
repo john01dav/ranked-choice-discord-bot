@@ -25,7 +25,7 @@ pub async fn tally(db: &Db) -> sqlx::Result<String>{
             break;
         }
 
-        let least_popular = Tally::least_popular_non_zero(&provisional_tally);
+        let least_popular = tally.least_popular(&provisional_tally);
         match least_popular{
             Some(least_popular) => {
                 let name = &tally.options.get(&least_popular).unwrap().name;
@@ -37,8 +37,6 @@ pub async fn tally(db: &Db) -> sqlx::Result<String>{
                 break;
             }
         }
-
-        println!("{}", response);
 
         round_id += 1;
     }
@@ -133,14 +131,16 @@ impl<'a> Tally<'a>{
         majority
     }
 
-    fn least_popular_non_zero(tally: &BTreeMap<(String, u32), u32>) -> Option<u32>{
+    fn least_popular(&self, tally: &BTreeMap<(String, u32), u32>) -> Option<u32>{
         let mut least_popular_count = 0;
         let mut least_popular = None;
 
         for ((_name, id), count) in tally{
-            if *count != 0 && (least_popular.is_none() || *count < least_popular_count){
-                least_popular = Some(*id);
-                least_popular_count = *count;
+            if !self.eliminated.contains(id){
+                if *count != 0 && (least_popular.is_none() || *count < least_popular_count){
+                    least_popular = Some(*id);
+                    least_popular_count = *count;
+                }
             }
         }
 
@@ -151,10 +151,12 @@ impl<'a> Tally<'a>{
         self.eliminated.insert(id);
 
         for (user_id, data) in &mut self.data{
-            if let Some(option) = data.option{
-                if option == id {
+            while let Some(option) = data.option{
+                if self.eliminated.contains(&option) {
                     data.choice_number += 1;
                     data.option = self.db.get_nth_vote(*user_id, data.choice_number).await?;
+                }else{
+                    break;
                 }
             }
         }
