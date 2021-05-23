@@ -12,6 +12,8 @@ use crate::db::Db;
 use std::sync::Arc;
 use std::time::Instant;
 use serenity::utils::Colour;
+use serenity::http::AttachmentType;
+use std::borrow::Cow;
 
 #[group]
 #[commands(vote_help, poll, vote, tally)]
@@ -128,31 +130,50 @@ async fn vote_internal(ctx: &Context, msg: &Message, mut args_unusable: Args) ->
 command_wrapper!(tally, tally_internal);
 
 async fn tally_internal(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult{
+    #[derive(Copy, Clone)]
+    enum Mode{
+        Full,
+        Brief,
+        File
+    }
+
     let start = Instant::now();
     let data = ctx.data.read().await;
     let db = data.get::<Db>().unwrap();
     let (description, fields) = tally::tally(db.as_ref()).await?;
     let elapsed = Instant::now()-start;
 
-    let full = if args.len() == 0{
-        false
-    }else if args.len() == 1{
-        let args = args.iter::<String>().map(|a| a.unwrap()).collect::<Vec<String>>();
-        if args[0] == "full"{
-            true
-        }else if args[0] == "brief" {
-            false
-        }else{
-            msg.reply_ping(ctx, "Usage: !tally [full|brief]").await?;
+    let args = args.iter::<String>().map(|a| a.unwrap()).collect::<Vec<String>>();
+    let mode = match args.len(){
+        1 => {
+            match &(args[0])[0..]{
+                "full" => Mode::Full,
+                "brief" => Mode::Brief,
+                "file" => Mode::File,
+                _ => {
+                    msg.reply_ping(ctx, "Usage: !tally [full|brief|file]").await?;
+                    return Ok(());
+                }
+            }
+        },
+        0 => Mode::Brief,
+        _ => {
+            msg.reply_ping(ctx, "Usage: !tally [full|brief|file]").await?;
             return Ok(());
         }
-    }else{
-        msg.reply_ping(ctx, "Usage: !tally [full|brief]").await?;
-        return Ok(());
     };
 
     //main results
     msg.channel_id.send_message(&ctx.http, move |m|{
+        if let Mode::File = mode{
+            let mut content = String::new();
+            for field in &fields{
+                content.push_str(&format!("{}\n", field.0));
+                content.push_str(&format!("{}\n\n", field.1));
+            }
+            m.files(std::iter::once(AttachmentType::Bytes {data: Cow::Owned(content.as_bytes().iter().map(|u| *u).collect()), filename: "rounds.txt".into()}));
+        }
+
         m.embed(move |e| {
             e.color(Colour::from_rgb(59, 130, 246));
             e.description(description);
@@ -161,12 +182,15 @@ async fn tally_internal(ctx: &Context, msg: &Message, mut args: Args) -> Command
                 cef
             });
 
-            if full{
-                e.fields(fields);
+            match mode{
+                Mode::Full => {e.fields(fields);},
+                Mode::Brief => {}
+                Mode::File => {/* handle later*/}
             }
 
             e
         });
+
         m
     }).await?;
 
