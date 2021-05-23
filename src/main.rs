@@ -67,6 +67,7 @@ Ranked Polls Discord Bot Help:
  - !poll, show current poll options
  - !vote <1st choice> <2nd choice> … <nth choice>, cast or update your vote run !poll to see choice IDs
  - !tally, show the results thus far
+ - !tally, show the results thus far, with data on rounds
     "#).await?;
 
     Ok(())
@@ -126,26 +127,29 @@ async fn vote_internal(ctx: &Context, msg: &Message, mut args_unusable: Args) ->
 
 command_wrapper!(tally, tally_internal);
 
-async fn tally_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandResult{
+async fn tally_internal(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult{
     let start = Instant::now();
     let data = ctx.data.read().await;
     let db = data.get::<Db>().unwrap();
     let (description, fields) = tally::tally(db.as_ref()).await?;
     let elapsed = Instant::now()-start;
 
-    //show work
-    for field in fields{
-        msg.channel_id.send_message(&ctx.http, move |m|{
-            m.embed(move |e| {
-                e.color(Colour::from_rgb(59, 130, 246));
-                e.title(field.0);
-                e.description(field.1);
-
-                e
-            });
-            m
-        }).await?;
-    }
+    let full = if args.len() == 0{
+        false
+    }else if args.len() == 1{
+        let args = args.iter::<String>().map(|a| a.unwrap()).collect::<Vec<String>>();
+        if args[0] == "full"{
+            true
+        }else if args[0] == "brief" {
+            false
+        }else{
+            msg.reply_ping(ctx, "Usage: !tally [full|brief]").await?;
+            return Ok(());
+        }
+    }else{
+        msg.reply_ping(ctx, "Usage: !tally [full|brief]").await?;
+        return Ok(());
+    };
 
     //main results
     msg.channel_id.send_message(&ctx.http, move |m|{
@@ -156,6 +160,10 @@ async fn tally_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandRes
                 cef.text(format!("Computed in {} milliseconds.", elapsed.as_millis()));
                 cef
             });
+
+            if full{
+                e.fields(fields);
+            }
 
             e
         });
