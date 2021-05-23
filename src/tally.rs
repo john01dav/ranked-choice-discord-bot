@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use crate::db::Db;
 use crate::db::entities::Candidate;
 
@@ -20,12 +20,8 @@ pub async fn tally(db: &Db) -> sqlx::Result<(String, Vec<(String, String, bool)>
         });
 
         let mut field_description = String::new();
-        for ((name, id), count) in sorted_tally{
-            if tally.eliminated.contains(id){
-                field_description.push_str(&format!(" - ~~{} with {} votes~~\n", name, count));
-            }else{
-                field_description.push_str(&format!(" - {} with {} votes\n", name, count));
-            }
+        for ((name, _id), count) in sorted_tally{
+            field_description.push_str(&format!(" - {} with {} votes\n", name, count));
         }
 
         let majority = Tally::majority(&provisional_tally);
@@ -39,7 +35,7 @@ pub async fn tally(db: &Db) -> sqlx::Result<(String, Vec<(String, String, bool)>
         match least_popular{
             Some(least_popular) => {
                 let name = &tally.options.get(&least_popular).unwrap().name;
-                field_description.push_str(&format!("\nEliminating the least popular option: {}\n\n", name));
+                field_description.push_str(&format!("\nRedistributing votes from the least popular option: {}\n\n", name));
                 tally.eliminate(least_popular).await?;
 
                 fields.push((field_title, field_description, false));
@@ -65,8 +61,7 @@ struct VoterData{
 struct Tally<'a>{
     db: &'a Db,
     options: BTreeMap<u32, Candidate>,
-    data: BTreeMap<u64, VoterData>,
-    eliminated: BTreeSet<u32>
+    data: BTreeMap<u64, VoterData>
 }
 
 impl<'a> Tally<'a>{
@@ -89,8 +84,7 @@ impl<'a> Tally<'a>{
             Self{
                 db,
                 options,
-                data,
-                eliminated: BTreeSet::new()
+                data
             }
         )
     }
@@ -149,11 +143,9 @@ impl<'a> Tally<'a>{
         let mut least_popular = None;
 
         for ((_name, id), count) in tally{
-            if !self.eliminated.contains(id){
-                if *count != 0 && (least_popular.is_none() || *count < least_popular_count){
-                    least_popular = Some(*id);
-                    least_popular_count = *count;
-                }
+            if *count != 0 && (least_popular.is_none() || *count < least_popular_count){
+                least_popular = Some(*id);
+                least_popular_count = *count;
             }
         }
 
@@ -161,15 +153,11 @@ impl<'a> Tally<'a>{
     }
 
     async fn eliminate(&mut self, id: u32) -> sqlx::Result<()>{
-        self.eliminated.insert(id);
-
         for (user_id, data) in &mut self.data{
-            while let Some(option) = data.option{
-                if self.eliminated.contains(&option) {
+            if let Some(option) = data.option{
+                if option == id {
                     data.choice_number += 1;
                     data.option = self.db.get_nth_vote(*user_id, data.choice_number).await?;
-                }else{
-                    break;
                 }
             }
         }

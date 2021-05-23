@@ -133,10 +133,25 @@ async fn tally_internal(ctx: &Context, msg: &Message, _args: Args) -> CommandRes
     let (description, fields) = tally::tally(db.as_ref()).await?;
     let elapsed = Instant::now()-start;
 
+    //show work
+    for field in fields{
+        msg.channel_id.send_message(&ctx.http, move |m|{
+            m.embed(move |e| {
+                e.color(Colour::from_rgb(59, 130, 246));
+                e.title(field.0);
+                e.description(field.1);
+
+                e
+            });
+            m
+        }).await?;
+    }
+
+    //main results
     msg.channel_id.send_message(&ctx.http, move |m|{
         m.embed(move |e| {
+            e.color(Colour::from_rgb(59, 130, 246));
             e.description(description);
-            e.fields(fields);
             e.footer(|cef|{
                 cef.text(format!("Computed in {} milliseconds.", elapsed.as_millis()));
                 cef
